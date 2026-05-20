@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { ethers } from 'ethers';
 import Link from 'next/link';
 import { getWriteContract, generateClaimId } from '../../lib/contract';
@@ -58,6 +58,9 @@ export default function SendPage() {
   const [error, setError]     = useState('');
   const [showForm, setShowForm] = useState(false);
   const [transfers, setTransfers] = useState([]);
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const walletMenuRef = useRef(null);
 
   const [amount, setAmount]   = useState('');
   const [email, setEmail]     = useState('');
@@ -70,6 +73,31 @@ export default function SendPage() {
   const totalSent = transfers.reduce((s,t) => s + parseFloat(t.amount||0), 0);
   const active    = transfers.filter(t => t.status === 'Pending').length;
   const claimed   = transfers.filter(t => t.status === 'Claimed').length;
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (walletMenuRef.current && !walletMenuRef.current.contains(e.target)) {
+        setWalletMenuOpen(false);
+      }
+    }
+    if (walletMenuOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [walletMenuOpen]);
+
+  function handleCopyAddress() {
+    if (wallet?.address) {
+      navigator.clipboard.writeText(wallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  function handleDisconnect() {
+    setWallet(null);
+    setWalletMenuOpen(false);
+    setTransfers([]);
+    setShowForm(false);
+  }
 
   async function handleConnect() {
     try {
@@ -181,9 +209,69 @@ export default function SendPage() {
           <a href="/#how-it-works" style={{ color:C.body, fontSize:'.875rem', fontWeight:500, textDecoration:'none' }}>How it works</a>
           <span style={{ color:C.blue, fontSize:'.875rem', fontWeight:600, borderBottom:`2px solid ${C.blue}`, paddingBottom:'.1rem' }}>Dashboard</span>
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:'.75rem', background:C.blueLt, border:`1px solid rgba(0,71,255,.2)`, borderRadius:8, padding:'.5rem 1rem' }}>
-          <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, display:'inline-block' }}/>
-          <span style={{ color:C.blue, fontWeight:700, fontSize:'.82rem' }}>{truncate(wallet.address)}</span>
+        <div ref={walletMenuRef} style={{ position:'relative' }}>
+          <button
+            onClick={() => setWalletMenuOpen(o => !o)}
+            style={{ display:'flex', alignItems:'center', gap:'.75rem', background:C.blueLt, border:`1px solid rgba(0,71,255,.2)`, borderRadius:8, padding:'.5rem 1rem', cursor:'pointer', outline:'none' }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, display:'inline-block' }}/>
+            <span style={{ color:C.blue, fontWeight:700, fontSize:'.82rem' }}>{truncate(wallet.address)}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition:'transform .2s', transform: walletMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+
+          {walletMenuOpen && (
+            <div style={{ position:'absolute', top:'calc(100% + 8px)', right:0, background:'#fff', border:`1px solid ${C.border}`, borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.12)', minWidth:220, zIndex:200, overflow:'hidden', animation:'fadeInDown .15s ease' }}>
+              <button
+                onClick={handleCopyAddress}
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:'.75rem', padding:'.85rem 1.1rem', background:'none', border:'none', cursor:'pointer', fontSize:'.875rem', fontWeight:600, color:C.heading, textAlign:'left', transition:'background .12s' }}
+                onMouseEnter={e => e.currentTarget.style.background = C.blueLt}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <span style={{ width:30, height:30, borderRadius:8, background:C.blueLt, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                </span>
+                {copied ? '✓ Copied!' : 'Copy Address'}
+              </button>
+
+              <a
+                href={`https://sepolia.etherscan.io/address/${wallet.address}`}
+                target="_blank" rel="noopener noreferrer"
+                onClick={() => setWalletMenuOpen(false)}
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:'.75rem', padding:'.85rem 1.1rem', background:'none', fontSize:'.875rem', fontWeight:600, color:C.heading, textDecoration:'none', transition:'background .12s', boxSizing:'border-box' }}
+                onMouseEnter={e => e.currentTarget.style.background = C.blueLt}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <span style={{ width:30, height:30, borderRadius:8, background:C.blueLt, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                    <polyline points="15 3 21 3 21 9"/>
+                    <line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                </span>
+                View TX on Explorer
+              </a>
+
+              <div style={{ height:'1px', background:C.border, margin:'0 1.1rem' }}/>
+
+              <button
+                onClick={handleDisconnect}
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:'.75rem', padding:'.85rem 1.1rem', background:'none', border:'none', cursor:'pointer', fontSize:'.875rem', fontWeight:600, color:'#DC2626', textAlign:'left', transition:'background .12s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#FEE2E2'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                <span style={{ width:30, height:30, borderRadius:8, background:'#FEE2E2', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/>
+                    <line x1="21" y1="12" x2="9" y2="12"/>
+                  </svg>
+                </span>
+                Disconnect Wallet
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
